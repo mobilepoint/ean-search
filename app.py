@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
-import os, re, time
+import re, time
 import pandas as pd
 import streamlit as st
 import requests
 from io import BytesIO
 
-st.set_page_config(page_title="GTIN/EAN Finder via Google CSE", layout="wide")
-st.title("GTIN/EAN Finder via Google CSE (Excel version)")
+st.set_page_config(page_title="GTIN/EAN Finder via Google CSE (Excel)", layout="wide")
+st.title("GTIN/EAN Finder via Google CSE (Excel)")
 
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 GOOGLE_CSE_CX = st.secrets.get("GOOGLE_CSE_CX")
 
-# global counter
+# counter requests
 if "request_count" not in st.session_state:
     st.session_state["request_count"] = 0
-DAILY_LIMIT = 100  # implicit free tier
+DAILY_LIMIT = 100  # free tier guideline
 
 def clean_digits(s: str) -> str:
     return re.sub(r"[^0-9]", "", s or "")
@@ -53,12 +53,10 @@ def find_eans_in_text(text: str):
             gt = upc12_to_gtin13(digits)
             if gt:
                 out.append(gt)
-    seen = set()
-    uniq = []
+    seen, uniq = set(), []
     for x in out:
         if x not in seen:
-            uniq.append(x)
-            seen.add(x)
+            uniq.append(x); seen.add(x)
     return uniq
 
 def choose_best_ean(texts_with_weights):
@@ -72,19 +70,12 @@ def choose_best_ean(texts_with_weights):
             scores[c] = scores.get(c, 0.0) + base * w
     if not scores:
         return None
-    best = max(scores.items(), key=lambda kv: kv[1])[0]
-    return best
+    return max(scores.items(), key=lambda kv: kv[1])[0]
 
 def google_search(query: str, num: int = 5):
     if not GOOGLE_API_KEY or not GOOGLE_CSE_CX:
         return []
-    params = {
-        "key": GOOGLE_API_KEY,
-        "cx": GOOGLE_CSE_CX,
-        "q": query,
-        "num": min(num, 10),
-        "safe": "off",
-    }
+    params = {"key": GOOGLE_API_KEY, "cx": GOOGLE_CSE_CX, "q": query, "num": min(num, 10), "safe": "off"}
     try:
         r = requests.get("https://www.googleapis.com/customsearch/v1", params=params, timeout=12)
         st.session_state["request_count"] += 1
@@ -110,14 +101,12 @@ def lookup(mode: str, sku: str, name: str, max_urls: int = 5):
         queries = [f'"{sku}" ean', f'"{sku}" gtin', f'"{sku}" cod ean']
     else:  # Doar Nume
         queries = [f'"{name}" ean', f'"{name}" gtin']
-
     texts = []
     for q in queries:
         items = google_search(q, num=max_urls)
         for rank, it in enumerate(items):
             w = 1.0 + (max_urls - rank) * 0.1
-            snippet = it.get("snippet", "")
-            link = it.get("link")
+            snippet = it.get("snippet", ""); link = it.get("link")
             texts.append((snippet, w))
             if link:
                 page = fetch_url_text(link)
@@ -167,7 +156,7 @@ if uploaded is not None:
             name = str(row.get(col_name, "")).strip()
             current = str(row.get(col_target, "")).strip()
 
-            # Skip dacă există deja ceva în coloană
+            # Skip dacă există deja ceva în coloană (inclusiv NOT_FOUND)
             if current:
                 done += 1
                 bar.progress(int(done * 100 / max_rows))
@@ -176,6 +165,8 @@ if uploaded is not None:
             found = lookup(mode, sku, name)
             if found and is_valid_ean13(found):
                 df.at[idx, col_target] = found
+            else:
+                df.at[idx, col_target] = "NOT_FOUND"
 
             done += 1
             if done % 5 == 0:
@@ -184,10 +175,12 @@ if uploaded is not None:
             time.sleep(0.2)
 
         st.success(f"Terminat. Rânduri procesate: {done}.")
-        st.download_button("Descarcă Excel completat",
-                           data=to_excel_bytes(df),
-                           file_name="output_ean.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button(
+            "Descarcă Excel completat",
+            data=to_excel_bytes(df),
+            file_name="output_ean.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
 
 with st.expander("Teste rapide validator EAN"):
     samples = ["5903396373473", "4006381333931", "036000291452", "1234567890128"]
