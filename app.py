@@ -13,7 +13,7 @@ GOOGLE_CSE_CX = st.secrets.get("GOOGLE_CSE_CX")
 # global counter
 if "request_count" not in st.session_state:
     st.session_state["request_count"] = 0
-DAILY_LIMIT = 100  # implicit Google free tier
+DAILY_LIMIT = 100  # implicit free tier
 
 def clean_digits(s: str) -> str:
     return re.sub(r"[^0-9]", "", s or "")
@@ -104,10 +104,12 @@ def fetch_url_text(url: str, timeout: int = 12) -> str:
     except Exception:
         return ""
 
-def google_backend_lookup(sku: str, name: str, max_urls: int = 5):
-    queries = [f'"{sku}" ean', f'"{sku}" gtin', f'"{sku}" cod ean']
-    if name:
-        queries += [f'"{name}" ean', f'"{name}" gtin']
+def lookup(mode: str, sku: str, name: str, max_urls: int = 5):
+    if mode == "Doar SKU":
+        queries = [f'"{sku}" ean', f'"{sku}" gtin', f'"{sku}" cod ean']
+    else:  # Doar Nume
+        queries = [f'"{name}" ean', f'"{name}" gtin']
+
     texts = []
     for q in queries:
         items = google_search(q, num=max_urls)
@@ -125,7 +127,7 @@ def google_backend_lookup(sku: str, name: str, max_urls: int = 5):
             return best
     return choose_best_ean(texts)
 
-# Sidebar info
+# Sidebar quota
 st.sidebar.header("Quota Google API")
 st.sidebar.write(f"Requests in session: {st.session_state['request_count']}")
 st.sidebar.write(f"Estimated daily free limit: {DAILY_LIMIT}")
@@ -141,10 +143,10 @@ if uploaded is not None:
     col_sku = st.selectbox("Coloană SKU", cols, index=0)
     col_name = st.selectbox("Coloană Denumire", cols, index=1 if len(cols) > 1 else 0)
     col_target = st.selectbox("Coloană țintă pentru EAN-13", cols, index=len(cols)-1)
+    mode = st.radio("Cum cauți EAN?", ["Doar SKU", "Doar Nume"])
     max_rows = st.number_input("Procesează maximum N rânduri", min_value=1, max_value=len(df), value=min(50, len(df)))
 
     if st.button("Pornește căutarea EAN"):
-        results = []
         done = 0
         bar = st.progress(0)
         status = st.empty()
@@ -152,24 +154,28 @@ if uploaded is not None:
             sku = str(row.get(col_sku, "")).strip()
             name = str(row.get(col_name, "")).strip()
             current = str(row.get(col_target, "")).strip()
-            if current and is_valid_ean13(current):
-                results.append((idx, current))
+
+            # Skip dacă există deja ceva în coloană
+            if current:
                 done += 1
                 bar.progress(int(done * 100 / max_rows))
                 continue
-            found = google_backend_lookup(sku, name)
+
+            found = lookup(mode, sku, name)
             if found and is_valid_ean13(found):
                 df.at[idx, col_target] = found
-                results.append((idx, found))
-            else:
-                results.append((idx, ""))
+
             done += 1
             if done % 5 == 0:
                 status.write(f"Procesate: {done}/{int(max_rows)}")
             bar.progress(int(done * 100 / max_rows))
             time.sleep(0.2)
-        st.success(f"Terminat. Rânduri procesate: {done}. Rânduri cu EAN completat: {sum(1 for _,v in results if v)}")
-        st.download_button("Descarcă CSV completat", data=df.to_csv(index=False).encode("utf-8-sig"), file_name="output_ean.csv", mime="text/csv")
+
+        st.success(f"Terminat. Rânduri procesate: {done}.")
+        st.download_button("Descarcă CSV completat",
+                           data=df.to_csv(index=False).encode("utf-8-sig"),
+                           file_name="output_ean.csv",
+                           mime="text/csv")
 
 with st.expander("Teste rapide validator EAN"):
     samples = ["5903396373473", "4006381333931", "036000291452", "1234567890128"]
@@ -177,6 +183,6 @@ with st.expander("Teste rapide validator EAN"):
     for s in samples:
         d = clean_digits(s)
         valid = is_valid_ean13(d)
-        conv = upc12_to_gtin13(d) if len(d)==12 else ""
+        conv = upc12_to_gtin13(d) if len(d) == 12 else ""
         rows.append({"input": s, "digits": d, "is_valid_ean13": valid, "upc_to_gtin13": conv})
     st.dataframe(pd.DataFrame(rows))
