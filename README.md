@@ -1,8 +1,15 @@
 # GTIN/EAN Finder via Google CSE
 
-Streamlit app care caută și completează EAN-13 (GTIN-13) după SKU și denumire, folosind **Google Custom Search API**.
+Aplicație Streamlit care caută și completează EAN-13 (GTIN-13) după SKU sau denumire, folosind **Google Custom Search API**.
 
-## Pași
-1. Creează motor Programmable Search Engine și setează "Search the entire web".
-2. Activează **Custom Search API** în Google Cloud, creează API key.
-3. În Streamlit Cloud → Settings → Secrets:
+## Funcționalități
+- Alegi modul de căutare: **Doar SKU** sau **Doar Nume**.
+- Sari automat rândurile unde coloana țintă are deja valoare.
+- Acceptă CSV-uri delimitate cu `,` sau `;`.
+- Validează codurile EAN-13.
+- Afișează în sidebar consumul de requests și quota rămasă.
+
+## Pași de deploy
+1. Urcă fișierele pe GitHub.
+2. Creează aplicația pe Streamlit Cloud (`app.py` entrypoint).
+3. În Settings → Secrets adaugă:
