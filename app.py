@@ -3,9 +3,10 @@ import os, re, time
 import pandas as pd
 import streamlit as st
 import requests
+from io import BytesIO
 
 st.set_page_config(page_title="GTIN/EAN Finder via Google CSE", layout="wide")
-st.title("GTIN/EAN Finder via Google CSE")
+st.title("GTIN/EAN Finder via Google CSE (Excel version)")
 
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 GOOGLE_CSE_CX = st.secrets.get("GOOGLE_CSE_CX")
@@ -127,6 +128,12 @@ def lookup(mode: str, sku: str, name: str, max_urls: int = 5):
             return best
     return choose_best_ean(texts)
 
+def to_excel_bytes(df: pd.DataFrame) -> bytes:
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="EANs")
+    return output.getvalue()
+
 # Sidebar quota
 st.sidebar.header("Quota Google API")
 st.sidebar.write(f"Requests in session: {st.session_state['request_count']}")
@@ -134,12 +141,12 @@ st.sidebar.write(f"Estimated daily free limit: {DAILY_LIMIT}")
 remaining = max(0, DAILY_LIMIT - st.session_state["request_count"])
 st.sidebar.write(f"Remaining (est.): {remaining}")
 
-uploaded = st.file_uploader("Încarcă CSV", type=["csv"])
+uploaded = st.file_uploader("Încarcă fișier Excel", type=["xls", "xlsx"])
 if uploaded is not None:
     try:
-        df = pd.read_csv(uploaded, sep=None, engine="python")
+        df = pd.read_excel(uploaded, engine="openpyxl")
     except Exception as e:
-        st.error(f"Eroare la citirea CSV: {e}")
+        st.error(f"Eroare la citirea Excel: {e}")
         st.stop()
 
     st.write("Previzualizare:", df.head(10))
@@ -177,10 +184,10 @@ if uploaded is not None:
             time.sleep(0.2)
 
         st.success(f"Terminat. Rânduri procesate: {done}.")
-        st.download_button("Descarcă CSV completat",
-                           data=df.to_csv(index=False).encode("utf-8-sig"),
-                           file_name="output_ean.csv",
-                           mime="text/csv")
+        st.download_button("Descarcă Excel completat",
+                           data=to_excel_bytes(df),
+                           file_name="output_ean.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 with st.expander("Teste rapide validator EAN"):
     samples = ["5903396373473", "4006381333931", "036000291452", "1234567890128"]
