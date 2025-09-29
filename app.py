@@ -136,7 +136,12 @@ st.sidebar.write(f"Remaining (est.): {remaining}")
 
 uploaded = st.file_uploader("Încarcă CSV", type=["csv"])
 if uploaded is not None:
-    df = pd.read_csv(uploaded)
+    try:
+        df = pd.read_csv(uploaded, sep=None, engine="python")
+    except Exception as e:
+        st.error(f"Eroare la citirea CSV: {e}")
+        st.stop()
+
     st.write("Previzualizare:", df.head(10))
 
     cols = list(df.columns)
