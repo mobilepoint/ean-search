@@ -29,8 +29,7 @@ def ean13_check_digit(d12: str) -> int:
 
 def is_valid_ean13(code: str) -> bool:
     d = clean_digits(code)
-    if len(d) != 13: return False
-    return ean13_check_digit(d[:12]) == int(d[-1])
+    return len(d) == 13 and ean13_check_digit(d[:12]) == int(d[-1])
 
 def upc12_to_gtin13(upc: str):
     d = clean_digits(upc)
@@ -48,7 +47,7 @@ def find_eans_in_text(text: str):
         elif len(d) == 12:
             gt = upc12_to_gtin13(d)
             if gt: out.append(gt)
-    return list(dict.fromkeys(out))  # deduplicate
+    return list(dict.fromkeys(out))
 
 def choose_best_ean(texts_with_weights):
     scores = {}
@@ -78,14 +77,14 @@ def fetch_url_text(url: str, timeout: int = 12) -> str:
         return re.sub(r"\s+", " ", txt)
     except Exception: return ""
 
-def lookup(mode: str, sku: str, name: str, max_urls: int = 5):
+def lookup(mode: str, sku: str, name: str, query_status, max_urls: int = 5):
     if mode == "Doar SKU":
         queries = [f'"{sku}" ean', f'"{sku}" gtin']
     else:
         queries = [f'"{name}" ean', f'"{name}" gtin']
     texts = []
     for q in queries:
-        st.write("Query trimis:", q)  # debug vizibil
+        query_status.write(f"Query trimis: {q}")
         items = google_search(q, num=max_urls)
         for rank, it in enumerate(items):
             w = 1.0 + (max_urls - rank) * 0.1
@@ -126,7 +125,7 @@ if uploaded:
     max_rows = st.number_input("Procesează maximum N rânduri", 1, len(df), min(50,len(df)))
 
     if st.button("Pornește căutarea EAN"):
-        done = 0; bar = st.progress(0); status = st.empty()
+        done = 0; bar = st.progress(0); status = st.empty(); query_status = st.empty()
         for idx, row in df.head(int(max_rows)).iterrows():
             sku, name = str(row.get(col_sku,"")).strip(), str(row.get(col_name,"")).strip()
             current = str(row.get(col_target,"")).strip()
@@ -135,7 +134,7 @@ if uploaded:
             if current and (is_valid_ean13(current) or current.upper()=="NOT_FOUND"):
                 done+=1; bar.progress(int(done*100/max_rows)); continue
 
-            found = lookup(mode, sku, name)
+            found = lookup(mode, sku, name, query_status)
             if found and is_valid_ean13(found):
                 df.at[idx, col_target] = found
             else:
