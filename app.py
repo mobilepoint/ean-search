@@ -118,9 +118,20 @@ def to_excel_bytes(df: pd.DataFrame) -> bytes:
 
 # === Upload în Google Drive ===
 def upload_to_drive(file_bytes: bytes, filename: str, mimetype: str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"):
+    # Debug info
+    st.write("Upload spre folder:", DRIVE_FOLDER_ID)
+    st.write("Client email SA:", st.secrets["gcp_service_account"]["client_email"])
+
     media = MediaIoBaseUpload(BytesIO(file_bytes), mimetype=mimetype, resumable=False)
-    file_metadata = {"name": filename, "parents": [DRIVE_FOLDER_ID]}
-    f = drive_service.files().create(body=file_metadata, media_body=media, fields="id, webViewLink, webContentLink").execute()
+    file_metadata = {"name": filename}
+    if DRIVE_FOLDER_ID:
+        file_metadata["parents"] = [DRIVE_FOLDER_ID]
+
+    f = drive_service.files().create(
+        body=file_metadata,
+        media_body=media,
+        fields="id, webViewLink, webContentLink"
+    ).execute()
     return f
 
 # === Interfața ===
