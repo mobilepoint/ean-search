@@ -122,7 +122,13 @@ if uploaded:
     col_name = st.selectbox("Coloană Denumire", cols, index=1 if len(cols)>1 else 0)
     col_target = st.selectbox("Coloană țintă pentru EAN-13", cols, index=len(cols)-1)
     mode = st.radio("Cum cauți EAN?", ["Doar SKU", "Doar Nume"])
-    max_rows = st.number_input("Procesează maximum N rânduri", 1, len(df), min(50,len(df)))
+
+    # Alegere rânduri
+    mode_rows = st.radio("Ce rânduri procesezi?", ["Primele N rânduri", "Toate rândurile"])
+    if mode_rows == "Primele N rânduri":
+        max_rows = st.number_input("N rânduri de procesat", 1, len(df), min(50,len(df)))
+    else:
+        max_rows = len(df)
 
     if st.button("Pornește căutarea EAN"):
         done = 0; bar = st.progress(0); status = st.empty(); query_status = st.empty()
@@ -145,7 +151,20 @@ if uploaded:
             bar.progress(int(done*100/max_rows)); time.sleep(0.2)
 
         st.success(f"Terminat. Rânduri procesate: {done}.")
-        st.download_button("Descarcă Excel completat",
-            data=to_excel_bytes(df),
+        excel_data = to_excel_bytes(df)
+        st.download_button(
+            "Descarcă Excel completat",
+            data=excel_data,
             file_name="output_ean.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="download-ean"
+        )
+        st.markdown(
+            """
+            <script>
+            const btn = window.parent.document.querySelector('button[data-testid="stDownloadButton-download-ean"]');
+            if (btn) { btn.click(); }
+            </script>
+            """,
+            unsafe_allow_html=True
+        )
